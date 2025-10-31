@@ -165,21 +165,34 @@ jobs:
           path: .
           if-no-files-found: warn
       
-      - name: Deploy to Vercel
+      - name: Install Vercel CLI
+        run: npm i -g vercel
+
+      - name: Pull Vercel environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Build with Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel build --prod --token "$VERCEL_TOKEN"
+
+      - name: Deploy to Vercel (prebuilt)
         id: vercel-deploy
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
-          working-directory: ./
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN")
+          echo "preview-url=$URL" >> $GITHUB_OUTPUT
       
       - name: Deployment summary
         run: |
           echo "## Vercel Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- Status: Success" >> $GITHUB_STEP_SUMMARY
-          echo "- URL: ${{ steps.vercel-deploy.outputs.preview-url || steps.vercel-deploy.outputs.deployment-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: ${{ steps.vercel-deploy.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
           echo "- Deployed at: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🌐 Your site is live on Vercel!" >> $GITHUB_STEP_SUMMARY
