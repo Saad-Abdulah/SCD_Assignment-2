@@ -45,7 +45,7 @@
 1. **Download Artifacts** - Retrieves built files
 2. **Deploy to Heroku** - (if HEROKU_API_KEY secret configured)
 3. **Deploy to AWS** - (if AWS secrets configured)
-4. **Deploy to GitHub Pages** - Automatic deployment
+4. **Deploy to Vercel** - Automatic deployment (requires Vercel secrets)
 5. **Deployment Summary** - Shows deployment status and URL
 
 ---
@@ -58,26 +58,35 @@
 - ✅ Environment-specific deployments
 - ✅ Proper permission scopes
 
-### Required Secrets (Optional)
-For Heroku deployment:
+### Required Secrets
+
+For Vercel deployment (Primary):
+- `VERCEL_TOKEN` - Authentication token
+- `VERCEL_ORG_ID` - Organization/Team ID
+- `VERCEL_PROJECT_ID` - Project ID (optional but recommended)
+
+For Heroku deployment (Optional):
 - `HEROKU_API_KEY`
 - `HEROKU_APP_NAME`
 
-For AWS deployment:
+For AWS deployment (Optional):
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION`
 
 **Note**: Secrets are never exposed in logs or code!
 
+**Setup**: See `VERCEL_DEPLOYMENT_GUIDE.md` for detailed instructions
+
 ---
 
 ## Deployment Platforms
 
-### 1. GitHub Pages ✅
+### 1. Vercel ✅ (Primary)
 - **Automatic**: Deploys on every push to main
-- **No Secrets Required**: Uses built-in GITHUB_TOKEN
-- **URL Format**: `https://saad-abdulah.github.io/SCD_Assignment-2/`
+- **Required Secrets**: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+- **URL Format**: `https://your-project.vercel.app`
+- **See**: `VERCEL_DEPLOYMENT_GUIDE.md` for setup instructions
 
 ### 2. Heroku (Optional)
 - Requires HEROKU_API_KEY secret
@@ -96,14 +105,15 @@ For AWS deployment:
 ### ✅ Success Indicators:
 ```
 ✅ DEPLOYMENT SUCCESSFUL!
-🌐 Your website is live at:
-https://saad-abdulah.github.io/SCD_Assignment-2/
+🌐 Your website is live on Vercel!
+📦 Preview URL: https://your-project-xyz.vercel.app
+🚀 Production URL: https://your-project.vercel.app
 ```
 
 **What this means**:
 - All quality checks passed
 - Build completed successfully
-- Files deployed to GitHub Pages
+- Files deployed to Vercel
 - Website is now live and accessible
 
 ### ❌ Failure Indicators:
@@ -114,9 +124,10 @@ https://saad-abdulah.github.io/SCD_Assignment-2/
 - Push updated code
 
 **If Deployment Fails**:
-- Verify GitHub Pages is enabled (Settings → Pages → Source: GitHub Actions)
-- Check permissions are correct
+- Verify Vercel secrets are configured (Settings → Secrets → Actions)
+- Check VERCEL_TOKEN, VERCEL_ORG_ID, and VERCEL_PROJECT_ID are set
 - Review deployment logs for specific errors
+- See `VERCEL_DEPLOYMENT_GUIDE.md` for troubleshooting
 
 ---
 
@@ -141,16 +152,18 @@ To trigger deployment manually:
 
 ---
 
-## GitHub Pages Setup
+## Vercel Setup
 
-**IMPORTANT**: Enable GitHub Pages before deployment works!
+**IMPORTANT**: Configure Vercel secrets before deployment works!
 
-1. Go to: **Settings** → **Pages**
-2. Under "Build and deployment"
-3. Select **Source**: **GitHub Actions**
-4. Click **Save**
+1. Go to: **Settings** → **Secrets and variables** → **Actions**
+2. Add required secrets:
+   - `VERCEL_TOKEN`
+   - `VERCEL_ORG_ID`
+   - `VERCEL_PROJECT_ID` (optional but recommended)
+3. Save secrets
 
-See `ENABLE_PAGES_GUIDE.md` for detailed instructions.
+See `VERCEL_DEPLOYMENT_GUIDE.md` for detailed instructions.
 
 ---
 
@@ -158,10 +171,11 @@ See `ENABLE_PAGES_GUIDE.md` for detailed instructions.
 
 ✅ **Deployment pipeline implemented**  
 ✅ **Build → Test → Deploy stages defined**  
-✅ **Multiple platform support (GitHub Pages, Heroku, AWS)**  
+✅ **Multiple platform support (Vercel, Heroku, AWS)**  
 ✅ **Secure secret management**  
 ✅ **Best practices followed**  
-✅ **Manual and automatic triggers**
+✅ **Manual and automatic triggers**  
+✅ **Vercel integration configured**
 
 ---
 

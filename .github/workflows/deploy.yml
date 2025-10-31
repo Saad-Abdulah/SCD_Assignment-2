@@ -120,81 +120,60 @@ jobs:
           echo "- Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "- Platform deployments configured (secrets required for actual deployment)" >> $GITHUB_STEP_SUMMARY
   
-  deploy-pages:
-    name: Deploy to GitHub Pages
+  deploy-vercel:
+    name: Deploy to Vercel
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+      
+      - name: Check for package.json
+        id: check_package
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Install dependencies
+        if: steps.check_package.outputs.has_package == 'true'
+        run: npm ci
+        continue-on-error: true
+      
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-          path: ./deploy-dist
+          path: .
           if-no-files-found: warn
       
-      - name: Prepare deployment directory
-        run: |
-          if [ -d "./deploy-dist/dist" ]; then
-            mkdir -p ./site
-            cp -r ./deploy-dist/dist/* ./site/ || true
-          elif [ -d "./deploy-dist/build" ]; then
-            mkdir -p ./site
-            cp -r ./deploy-dist/build/* ./site/ || true
-          elif [ -d "./deploy-dist" ]; then
-            mkdir -p ./site
-            cp -r ./deploy-dist/* ./site/ || true
-          else
-            # Create a placeholder page
-            mkdir -p ./site
-            cat > ./site/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Deployment - SCD Assignment 2</title>
-    <meta charset="utf-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        h1 { color: #333; }
-    </style>
-</head>
-<body>
-    <h1>Deployment Pipeline</h1>
-    <p>This is a placeholder deployment page.</p>
-    <p>Build artifacts will be deployed here when available.</p>
-</body>
-</html>
-EOF
-          fi
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v3
-      
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v2
+      - name: Deploy to Vercel
+        id: vercel-deploy
+        uses: vercel/action@v1
         with:
-          path: './site'
-      
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v2
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./
       
       - name: Deployment summary
         run: |
-          echo "## GitHub Pages Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "## Vercel Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- Status: Success" >> $GITHUB_STEP_SUMMARY
-          echo "- URL: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Preview URL: ${{ steps.vercel-deploy.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Production URL: ${{ steps.vercel-deploy.outputs.production-url }}" >> $GITHUB_STEP_SUMMARY
           echo "- Deployed at: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 Your site is live on Vercel!" >> $GITHUB_STEP_SUMMARY
 
