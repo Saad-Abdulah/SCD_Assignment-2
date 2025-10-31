@@ -167,7 +167,7 @@ jobs:
       
       - name: Deploy to Vercel
         id: vercel-deploy
-        uses: vercel/action@v1
+        uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -179,8 +179,7 @@ jobs:
         run: |
           echo "## Vercel Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- Status: Success" >> $GITHUB_STEP_SUMMARY
-          echo "- Preview URL: ${{ steps.vercel-deploy.outputs.preview-url }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Production URL: ${{ steps.vercel-deploy.outputs.production-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: ${{ steps.vercel-deploy.outputs.preview-url || steps.vercel-deploy.outputs.deployment-url }}" >> $GITHUB_STEP_SUMMARY
           echo "- Deployed at: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🌐 Your site is live on Vercel!" >> $GITHUB_STEP_SUMMARY
