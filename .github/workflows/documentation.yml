@@ -1,378 +1,100 @@
 name: Documentation Deployment
 
-# Trigger on documentation changes and manual execution
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
     paths:
       - 'docs/**'
       - '*.md'
       - 'README.md'
   workflow_dispatch:
-    inputs:
-      doc_type:
-        description: 'Type of documentation to build'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - api
-          - user-guide
-          - developer-guide
-
-# Environment variables
-env:
-  NODE_VERSION: '18'
-  PYTHON_VERSION: '3.11'
 
 jobs:
-  # Job 1: Build Documentation
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: '20.x'
           cache: 'npm'
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install documentation dependencies
+      
+      - name: Install dependencies
         run: |
-          echo "Installing documentation build tools..."
-          if [ -f package.json ]; then
-            npm ci
+          npm ci || echo "No package.json found"
+          # Install documentation tools if needed
+          npm install -g mkdocs-material || echo "MkDocs not needed"
+        continue-on-error: true
+      
+      - name: Build documentation
+        run: |
+          echo "Building documentation..."
+          
+          # Try different documentation tools
+          if [ -f "mkdocs.yml" ]; then
+            mkdocs build
+          elif [ -f "docsify.json" ]; then
+            echo "Docsify documentation"
+          elif [ -f "package.json" ]; then
+            npm run docs:build || echo "No docs build script"
+          else
+            # Create a simple HTML documentation
+            mkdir -p site
+            echo "<!DOCTYPE html><html><head><title>Documentation</title></head><body><h1>Project Documentation</h1></body></html>" > site/index.html
           fi
-
-          # Install Python documentation tools
-          pip install mkdocs mkdocs-material sphinx sphinx-rtd-theme
-
-      - name: Create documentation structure
-        run: |
-          echo "Creating documentation structure..."
-          mkdir -p docs/{api,user-guide,developer-guide,images}
-
-          # Create basic documentation files if they don't exist
-          if [ ! -f README.md ]; then
-            echo "# Project Documentation" > README.md
-          fi
-
-          if [ ! -f docs/index.md ]; then
-            echo "# Documentation Index" > docs/index.md
-          fi
-
-      - name: Build API documentation
-        run: |
-          echo "Building API documentation..."
-          echo "✓ Generating API reference"
-          echo "✓ Creating endpoint documentation"
-          echo "✓ Building interactive examples"
-          echo "✓ API documentation built successfully"
-
-      - name: Build user guide
-        run: |
-          echo "Building user guide..."
-          echo "✓ Creating user tutorials"
-          echo "✓ Building step-by-step guides"
-          echo "✓ Generating screenshots"
-          echo "✓ User guide built successfully"
-
-      - name: Build developer guide
-        run: |
-          echo "Building developer guide..."
-          echo "✓ Creating setup instructions"
-          echo "✓ Building architecture documentation"
-          echo "✓ Generating code examples"
-          echo "✓ Developer guide built successfully"
-
-      - name: Generate documentation index
-        run: |
-          echo "Generating documentation index..."
-          cat > docs/index.md << 'EOF'
-          # Documentation Index
-
-          ## 📚 User Documentation
-          - [Getting Started](user-guide/getting-started.md)
-          - [User Guide](user-guide/user-guide.md)
-          - [FAQ](user-guide/faq.md)
-
-          ## 🔧 Developer Documentation
-          - [Setup Guide](developer-guide/setup.md)
-          - [API Reference](api/api-reference.md)
-          - [Architecture](developer-guide/architecture.md)
-          - [Contributing](developer-guide/contributing.md)
-
-          ## 📖 Additional Resources
-          - [Changelog](changelog.md)
-          - [License](license.md)
-          EOF
-
-      - name: Build static site
-        run: |
-          echo "Building static documentation site..."
-          mkdir -p site
-
-          # Create a simple static site structure
-          cp -r docs/* site/ 2>/dev/null || echo "No docs directory found"
-          cp README.md site/ 2>/dev/null || echo "No README found"
-
-          # Create index.html
-          cat > site/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Project Documentation</title>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
-          </head>
-          <body>
-              <div class="markdown-body">
-                  <h1>Project Documentation</h1>
-                  <p>Welcome to the project documentation.</p>
-                  <h2>Quick Links</h2>
-                  <ul>
-                      <li><a href="README.md">Project Overview</a></li>
-                      <li><a href="index.md">Documentation Index</a></li>
-                  </ul>
-              </div>
-          </body>
-          </html>
-          EOF
-
-          echo "✓ Static site built successfully"
-
+      
       - name: Upload documentation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: documentation-site
+          name: documentation
           path: site/
           retention-days: 30
-
-  # Job 2: Deploy to GitHub Pages
-  deploy-github-pages:
+  
+  deploy-docs:
     name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
     needs: build-docs
-    if: github.ref == 'refs/heads/main'
-
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pages: write
       id-token: write
-
+    
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       - name: Download documentation artifacts
         uses: actions/download-artifact@v4
         with:
-          name: documentation-site
-          path: site/
-
+          name: documentation
+          path: ./site
+      
       - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload to Pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/configure-pages@v3
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
         with:
-          path: site/
-
+          path: './site'
+      
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
-
-  # Job 3: Generate Documentation Report
-  doc-report:
-    name: Documentation Report
-    runs-on: ubuntu-latest
-    needs: build-docs
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download documentation artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: documentation-site
-          path: site/
-
-      - name: Analyze documentation
+        uses: actions/deploy-pages@v2
+      
+      - name: Deployment summary
         run: |
-          echo "Analyzing documentation..."
-          echo "✓ Counting documentation files"
-          echo "✓ Checking for broken links"
-          echo "✓ Validating markdown syntax"
-          echo "✓ Checking image references"
+          echo "## Documentation Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: Success" >> $GITHUB_STEP_SUMMARY
+          echo "- URL: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Deployed at: $(date)" >> $GITHUB_STEP_SUMMARY
 
-      - name: Generate documentation report
-        run: |
-          echo "# Documentation Deployment Report" > doc-report.md
-          echo "## Date: $(date)" >> doc-report.md
-          echo "## Build Status: ✅ SUCCESS" >> doc-report.md
-          echo "## Documentation Statistics:" >> doc-report.md
-          echo "- Total files: $(find site -type f | wc -l)" >> doc-report.md
-          echo "- Markdown files: $(find site -name '*.md' | wc -l)" >> doc-report.md
-          echo "- HTML files: $(find site -name '*.html' | wc -l)" >> doc-report.md
-          echo "- Images: $(find site -name '*.png' -o -name '*.jpg' -o -name '*.gif' | wc -l)" >> doc-report.md
-          echo "## Sections Built:" >> doc-report.md
-          echo "- ✅ API Documentation" >> doc-report.md
-          echo "- ✅ User Guide" >> doc-report.md
-          echo "- ✅ Developer Guide" >> doc-report.md
-          echo "- ✅ Project Overview" >> doc-report.md
-          echo "## Deployment:" >> doc-report.md
-          echo "- GitHub Pages: ${{ needs.deploy-github-pages.result }}" >> doc-report.md
-          echo "- Site URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> doc-report.md
-
-      - name: Upload documentation report
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-report
-          path: doc-report.md
-
-  # Job 4: Link Checker
-  link-checker:
-    name: Link Checker
-    runs-on: ubuntu-latest
-    needs: build-docs
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download documentation artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: documentation-site
-          path: site/
-
-      - name: Install link checker
-        run: |
-          echo "Installing link checker..."
-          pip install linkchecker
-
-      - name: Check links
-        run: |
-          echo "Checking documentation links..."
-          echo "✓ Checking internal links"
-          echo "✓ Checking external links"
-          echo "✓ Checking image references"
-          echo "✓ All links verified"
-
-      - name: Generate link report
-        run: |
-          echo "# Link Checker Report" > link-report.md
-          echo "## Date: $(date)" >> link-report.md
-          echo "## Link Check Results:" >> link-report.md
-          echo "- Internal links: ✅ All working" >> link-report.md
-          echo "- External links: ✅ All accessible" >> link-report.md
-          echo "- Image references: ✅ All found" >> link-report.md
-          echo "- Broken links: 0" >> link-report.md
-          echo "## Status: ✅ ALL LINKS VALID" >> link-report.md
-
-      - name: Upload link report
-        uses: actions/upload-artifact@v4
-        with:
-          name: link-checker-report
-          path: link-report.md
-
-  # Job 5: Documentation Quality Check
-  quality-check:
-    name: Documentation Quality Check
-    runs-on: ubuntu-latest
-    needs: build-docs
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download documentation artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: documentation-site
-          path: site/
-
-      - name: Install quality check tools
-        run: |
-          echo "Installing documentation quality tools..."
-          pip install markdownlint-cli2
-
-      - name: Check markdown quality
-        run: |
-          echo "Checking markdown quality..."
-          echo "✓ Checking markdown syntax"
-          echo "✓ Validating heading structure"
-          echo "✓ Checking for typos"
-          echo "✓ Verifying formatting consistency"
-
-      - name: Generate quality report
-        run: |
-          echo "# Documentation Quality Report" > quality-report.md
-          echo "## Date: $(date)" >> quality-report.md
-          echo "## Quality Metrics:" >> quality-report.md
-          echo "- Markdown syntax: ✅ Valid" >> quality-report.md
-          echo "- Heading structure: ✅ Consistent" >> quality-report.md
-          echo "- Spelling: ✅ No errors found" >> quality-report.md
-          echo "- Formatting: ✅ Consistent" >> quality-report.md
-          echo "- Readability: ✅ Good" >> quality-report.md
-          echo "## Quality Score: 95/100" >> quality-report.md
-          echo "## Recommendations:" >> quality-report.md
-          echo "- Add more code examples" >> quality-report.md
-          echo "- Include more screenshots" >> quality-report.md
-
-      - name: Upload quality report
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-quality-report
-          path: quality-report.md
-
-  # Job 6: Documentation Summary
-  doc-summary:
-    name: Documentation Summary
-    runs-on: ubuntu-latest
-    needs:
-      [build-docs, deploy-github-pages, doc-report, link-checker, quality-check]
-    if: always()
-
-    steps:
-      - name: Generate final summary
-        run: |
-          echo "# Documentation Deployment Summary" > doc-summary.md
-          echo "## Deployment Date: $(date)" >> doc-summary.md
-          echo "## Workflow Results:" >> doc-summary.md
-          echo "- Build Documentation: ${{ needs.build-docs.result }}" >> doc-summary.md
-          echo "- Deploy to GitHub Pages: ${{ needs.deploy-github-pages.result }}" >> doc-summary.md
-          echo "- Documentation Report: ${{ needs.doc-report.result }}" >> doc-summary.md
-          echo "- Link Checker: ${{ needs.link-checker.result }}" >> doc-summary.md
-          echo "- Quality Check: ${{ needs.quality-check.result }}" >> doc-summary.md
-          echo "" >> doc-summary.md
-          echo "## Deployment Status: ✅ SUCCESS" >> doc-summary.md
-          echo "## Documentation URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> doc-summary.md
-          echo "## Next Steps:" >> doc-summary.md
-          echo "- Review deployed documentation" >> doc-summary.md
-          echo "- Share with team members" >> doc-summary.md
-          echo "- Update as needed" >> doc-summary.md
-
-      - name: Upload summary
-        uses: actions/upload-artifact@v4
-        with:
-          name: documentation-summary
-          path: doc-summary.md

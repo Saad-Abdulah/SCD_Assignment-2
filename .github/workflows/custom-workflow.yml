@@ -1,546 +1,128 @@
-name: Custom Workflow - Release Notes Generator
+name: Custom Release Notes Generator
 
-# Trigger on releases and manual execution
 on:
   release:
-    types: [published, created]
+    types:
+      - published
   workflow_dispatch:
     inputs:
-      release_type:
-        description: 'Type of release notes to generate'
+      tag:
+        description: 'Release tag to generate notes for'
         required: true
-        default: 'standard'
-        type: choice
-        options:
-          - standard
-          - detailed
-          - summary
-          - changelog
-
-# Environment variables
-env:
-  NODE_VERSION: '18'
+        default: 'latest'
 
 jobs:
-  # Job 1: Analyze Changes
-  analyze-changes:
-    name: Analyze Changes
-    runs-on: ubuntu-latest
-
-    outputs:
-      has-changes: ${{ steps.analyze.outputs.has-changes }}
-      change-count: ${{ steps.analyze.outputs.change-count }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Analyze repository changes
-        id: analyze
-        run: |
-          echo "Analyzing repository changes..."
-
-          # Get the latest tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          if [ -n "$LATEST_TAG" ]; then
-            echo "Latest tag: $LATEST_TAG"
-            COMMITS=$(git log --oneline $LATEST_TAG..HEAD | wc -l)
-            echo "Commits since last tag: $COMMITS"
-            
-            if [ $COMMITS -gt 0 ]; then
-              echo "has-changes=true" >> $GITHUB_OUTPUT
-              echo "change-count=$COMMITS" >> $GITHUB_OUTPUT
-            else
-              echo "has-changes=false" >> $GITHUB_OUTPUT
-              echo "change-count=0" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "No previous tags found"
-            COMMITS=$(git log --oneline | wc -l)
-            echo "has-changes=true" >> $GITHUB_OUTPUT
-            echo "change-count=$COMMITS" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate change analysis
-        run: |
-          echo "Generating change analysis..."
-          echo "✓ Analyzing commit messages"
-          echo "✓ Categorizing changes"
-          echo "✓ Identifying breaking changes"
-          echo "✓ Detecting new features"
-          echo "✓ Finding bug fixes"
-
-      - name: Create change summary
-        run: |
-          echo "# Change Analysis Report" > change-analysis.md
-          echo "## Date: $(date)" >> change-analysis.md
-          echo "## Analysis Results:" >> change-analysis.md
-          echo "- Total commits: ${{ steps.analyze.outputs.change-count }}" >> change-analysis.md
-          echo "- New features: 3" >> change-analysis.md
-          echo "- Bug fixes: 5" >> change-analysis.md
-          echo "- Breaking changes: 1" >> change-analysis.md
-          echo "- Documentation updates: 2" >> change-analysis.md
-          echo "## Status: Analysis completed" >> change-analysis.md
-
-      - name: Upload change analysis
-        uses: actions/upload-artifact@v4
-        with:
-          name: change-analysis-report
-          path: change-analysis.md
-
-  # Job 2: Generate Release Notes
   generate-release-notes:
     name: Generate Release Notes
     runs-on: ubuntu-latest
-    needs: analyze-changes
-
+    permissions:
+      contents: read
+      pull-requests: read
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install release tools
+      
+      - name: Get previous tag
+        id: previous_tag
         run: |
-          echo "Installing release note generation tools..."
-          npm install -g conventional-changelog-cli
-
-      - name: Generate standard release notes
-        if: github.event.inputs.release_type == 'standard' || github.event.inputs.release_type == ''
+          if [ "${{ github.event.release.tag_name }}" != "" ]; then
+            CURRENT_TAG="${{ github.event.release.tag_name }}"
+          else
+            CURRENT_TAG="${{ github.event.inputs.tag }}"
+          fi
+          
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          
+          echo "current_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          
+          echo "Current tag: $CURRENT_TAG"
+          echo "Previous tag: $PREVIOUS_TAG"
+      
+      - name: Fetch commits since last release
+        id: commits
         run: |
-          echo "Generating standard release notes..."
-
-          # Create standard release notes
-          cat > release-notes.md << 'EOF'
-          # Release Notes
-
-          ## 🚀 New Features
-          - Added user authentication system
-          - Implemented real-time notifications
-          - Added dark mode support
-
-          ## 🐛 Bug Fixes
-          - Fixed login validation issue
-          - Resolved memory leak in data processing
-          - Fixed responsive design on mobile devices
-          - Corrected API endpoint error handling
-          - Fixed timezone display issues
-
-          ## 🔧 Improvements
-          - Enhanced performance optimization
-          - Improved error messages
-          - Updated documentation
-
-          ## ⚠️ Breaking Changes
-          - Changed API authentication method (see migration guide)
-
-          ## 📚 Documentation
-          - Updated API documentation
-          - Added user guide sections
-
-          ## 🔒 Security
-          - Updated dependencies with security patches
-          - Enhanced input validation
-
+          if [ "${{ steps.previous_tag.outputs.previous_tag }}" != "" ]; then
+            COMMITS=$(git log ${{ steps.previous_tag.outputs.previous_tag }}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+          
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > RELEASE_NOTES.md << EOF
+          # Release Notes - ${{ steps.previous_tag.outputs.current_tag }}
+          
+          **Release Date:** $(date +"%Y-%m-%d")
+          **Tag:** ${{ steps.previous_tag.outputs.current_tag }}
+          
+          ## Changes Since Last Release
+          
+          ${{ steps.commits.outputs.commits }}
+          
+          ## Summary
+          
+          This release includes improvements and bug fixes. Please review the changes below.
+          
           ---
+          
           *Generated automatically by GitHub Actions*
           EOF
-
-          echo "✓ Standard release notes generated"
-
-      - name: Generate detailed release notes
-        if: github.event.inputs.release_type == 'detailed'
+          
+          cat RELEASE_NOTES.md
+      
+      - name: Extract PR numbers
         run: |
-          echo "Generating detailed release notes..."
-
-          # Create detailed release notes
-          cat > release-notes.md << 'EOF'
-          # Detailed Release Notes
-
-          ## 📊 Release Statistics
-          - **Total Commits**: 15
-          - **Files Changed**: 23
-          - **Lines Added**: 1,247
-          - **Lines Removed**: 89
-          - **Contributors**: 3
-
-          ## 🚀 New Features
-
-          ### User Authentication System
-          - Implemented JWT-based authentication
-          - Added role-based access control
-          - Created user registration and login flows
-          - Added password reset functionality
-
-          ### Real-time Notifications
-          - Integrated WebSocket connections
-          - Added push notification support
-          - Implemented notification preferences
-          - Created notification history
-
-          ### Dark Mode Support
-          - Added theme switching capability
-          - Implemented system preference detection
-          - Created dark mode styles
-          - Added theme persistence
-
-          ## 🐛 Bug Fixes
-
-          ### Authentication Issues
-          - Fixed login validation logic
-          - Resolved session timeout handling
-          - Corrected password strength validation
-
-          ### Performance Issues
-          - Resolved memory leak in data processing
-          - Fixed slow query optimization
-          - Improved database connection handling
-
-          ### UI/UX Issues
-          - Fixed responsive design on mobile devices
-          - Corrected button alignment issues
-          - Fixed text overflow problems
-
-          ### API Issues
-          - Corrected API endpoint error handling
-          - Fixed timezone display issues
-          - Resolved CORS configuration problems
-
-          ## 🔧 Technical Improvements
-
-          ### Performance Optimization
-          - Implemented code splitting
-          - Added lazy loading for components
-          - Optimized database queries
-          - Enhanced caching strategies
-
-          ### Error Handling
-          - Improved error messages
-          - Added comprehensive logging
-          - Implemented error tracking
-          - Enhanced debugging capabilities
-
-          ### Code Quality
-          - Updated ESLint configuration
-          - Added TypeScript types
-          - Improved test coverage
-          - Enhanced code documentation
-
-          ## ⚠️ Breaking Changes
-
-          ### API Authentication
-          - **Change**: JWT tokens now expire after 24 hours (previously 7 days)
-          - **Impact**: Users will need to re-authenticate more frequently
-          - **Migration**: Update client applications to handle token refresh
-
-          ## 📚 Documentation Updates
-
-          ### API Documentation
-          - Updated endpoint descriptions
-          - Added authentication examples
-          - Included error response formats
-          - Added rate limiting information
-
-          ### User Guide
-          - Added authentication setup guide
-          - Created notification configuration guide
-          - Added troubleshooting section
-          - Updated FAQ with new features
-
-          ## 🔒 Security Enhancements
-
-          ### Dependency Updates
-          - Updated React to v18.2.0
-          - Updated Node.js to v18.17.0
-          - Updated Express to v4.18.2
-          - Updated security-related packages
-
-          ### Input Validation
-          - Enhanced SQL injection protection
-          - Improved XSS prevention
-          - Added CSRF protection
-          - Enhanced file upload validation
-
-          ## 🧪 Testing
-
-          ### Test Coverage
-          - Unit tests: 95% coverage
-          - Integration tests: 87% coverage
-          - E2E tests: 78% coverage
-          - Performance tests: Added
-
-          ### Quality Assurance
-          - All critical bugs resolved
-          - Performance benchmarks met
-          - Security scan passed
-          - Accessibility compliance verified
-
-          ---
-          *Generated automatically by GitHub Actions - Detailed Version*
-          EOF
-
-          echo "✓ Detailed release notes generated"
-
-      - name: Generate summary release notes
-        if: github.event.inputs.release_type == 'summary'
+          # Extract PR numbers from commit messages
+          grep -oE "#[0-9]+" RELEASE_NOTES.md > pr_numbers.txt || echo "" > pr_numbers.txt
+          cat pr_numbers.txt
+      
+      - name: Generate markdown summary
         run: |
-          echo "Generating summary release notes..."
-
-          # Create summary release notes
-          cat > release-notes.md << 'EOF'
-          # Release Summary
-
-          ## 🎯 Key Highlights
-          - **3** new features added
-          - **5** bugs fixed
-          - **1** breaking change
-          - **2** security updates
-
-          ## ✨ What's New
-          - User authentication system
-          - Real-time notifications
-          - Dark mode support
-
-          ## 🔧 What's Fixed
-          - Login validation issues
-          - Memory leak resolved
-          - Mobile responsiveness improved
-          - API error handling enhanced
-          - Timezone display corrected
-
-          ## ⚠️ Important Notes
-          - API authentication method changed
-          - See migration guide for details
-
-          ## 📈 Impact
-          - Improved user experience
-          - Enhanced security
-          - Better performance
-          - Mobile-friendly interface
-
-          ---
-          *Quick summary generated by GitHub Actions*
-          EOF
-
-          echo "✓ Summary release notes generated"
-
-      - name: Generate changelog
-        if: github.event.inputs.release_type == 'changelog'
-        run: |
-          echo "Generating changelog format..."
-
-          # Create changelog format
-          cat > release-notes.md << 'EOF'
-          # Changelog
-
-          ## [Unreleased]
-
-          ### Added
-          - User authentication system with JWT
-          - Real-time notifications via WebSocket
-          - Dark mode theme support
-          - Role-based access control
-          - Password reset functionality
-          - Push notification support
-          - Notification preferences
-          - Theme persistence
-
-          ### Changed
-          - Updated API authentication method
-          - Improved error handling
-          - Enhanced performance optimization
-          - Updated documentation structure
-
-          ### Deprecated
-          - Old authentication tokens (will be removed in v2.0)
-          - Legacy notification system
-
-          ### Removed
-          - Unused API endpoints
-          - Deprecated configuration options
-
-          ### Fixed
-          - Login validation logic
-          - Memory leak in data processing
-          - Responsive design on mobile
-          - API endpoint error handling
-          - Timezone display issues
-          - Button alignment problems
-          - Text overflow issues
-          - CORS configuration
-
-          ### Security
-          - Updated dependencies with security patches
-          - Enhanced input validation
-          - Improved SQL injection protection
-          - Added XSS prevention measures
-          - Implemented CSRF protection
-          - Enhanced file upload validation
-
-          ---
-          *Changelog generated by GitHub Actions*
-          EOF
-
-          echo "✓ Changelog generated"
-
+          echo "## Release Notes Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- Tag: ${{ steps.previous_tag.outputs.current_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Previous Tag: ${{ steps.previous_tag.outputs.previous_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Commits: $(echo '${{ steps.commits.outputs.commits }}' | wc -l)" >> $GITHUB_STEP_SUMMARY
+      
       - name: Upload release notes
         uses: actions/upload-artifact@v4
         with:
-          name: release-notes
-          path: release-notes.md
-
-  # Job 3: Create Release Assets
-  create-assets:
-    name: Create Release Assets
-    runs-on: ubuntu-latest
-    needs: [analyze-changes, generate-release-notes]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download release notes
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-          path: ./
-
-      - name: Create release assets
-        run: |
-          echo "Creating release assets..."
-
-          # Create different formats
-          cp release-notes.md RELEASE_NOTES.md
-          cp release-notes.md CHANGELOG.md
-
-          # Create HTML version
-          cat > release-notes.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Release Notes</title>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
-              <style>
-                  body { max-width: 800px; margin: 0 auto; padding: 20px; }
-                  .header { text-align: center; margin-bottom: 30px; }
-                  .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 8px; }
-                  .feature { background-color: #28a745; color: white; }
-                  .fix { background-color: #dc3545; color: white; }
-                  .improvement { background-color: #17a2b8; color: white; }
-                  .breaking { background-color: #ffc107; color: black; }
-              </style>
-          </head>
-          <body>
-              <div class="markdown-body">
-                  <div class="header">
-                      <h1>🚀 Release Notes</h1>
-                      <p>Generated on $(date)</p>
-                  </div>
-                  <div id="content"></div>
-              </div>
-              <script>
-                  // Convert markdown to HTML (simplified)
-                  const content = document.getElementById('content');
-                  content.innerHTML = `$(cat release-notes.md | sed 's/^# /<h1>/' | sed 's/^## /<h2>/' | sed 's/^### /<h3>/' | sed 's/^#### /<h4>/' | sed 's/^##### /<h5>/' | sed 's/^###### /<h6>/' | sed 's/^- /<li>/' | sed 's/^\* /<li>/' | sed 's/$/<\/li>/' | sed 's/<li><\/li>//g' | sed 's/^/<p>/' | sed 's/$/<\/p>/' | sed 's/<p><h/</p><h/g' | sed 's/<\/h1>/<\/h1><\/p>/' | sed 's/<\/h2>/<\/h2><\/p>/' | sed 's/<\/h3>/<\/h3><\/p>/' | sed 's/<\/h4>/<\/h4><\/p>/' | sed 's/<\/h5>/<\/h5><\/p>/' | sed 's/<\/h6>/<\/h6><\/p>/')`;
-              </script>
-          </body>
-          </html>
-          EOF
-
-          echo "✓ Release assets created"
-
-      - name: Upload release assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-assets
+          name: release-notes-${{ steps.previous_tag.outputs.current_tag }}
           path: |
-            release-notes.md
             RELEASE_NOTES.md
-            CHANGELOG.md
-            release-notes.html
-
-  # Job 4: Update Release Description
-  update-release:
-    name: Update Release Description
-    runs-on: ubuntu-latest
-    needs: [analyze-changes, generate-release-notes, create-assets]
-    if: github.event_name == 'release'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download release notes
-        uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-          path: ./
-
-      - name: Update release description
-        uses: actions/github-script@v7
+            pr_numbers.txt
+          retention-days: 90
+      
+      - name: Commit release notes
+        if: github.event_name == 'release'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add RELEASE_NOTES.md
+          git commit -m "docs: add release notes for ${{ steps.previous_tag.outputs.current_tag }}" || echo "No changes to commit"
+          git push origin main || echo "Nothing to push"
+      
+      - name: Comment on release
+        if: github.event_name == 'release'
+        uses: actions/github-script@v6
         with:
           script: |
             const fs = require('fs');
-            const releaseNotes = fs.readFileSync('release-notes.md', 'utf8');
-
-            await github.rest.repos.updateRelease({
+            const notes = fs.readFileSync('RELEASE_NOTES.md', 'utf8');
+            
+            github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               release_id: context.payload.release.id,
-              body: releaseNotes
+              body: notes
             });
 
-            console.log('Release description updated successfully');
-
-  # Job 5: Generate Release Summary
-  release-summary:
-    name: Release Summary
-    runs-on: ubuntu-latest
-    needs:
-      [analyze-changes, generate-release-notes, create-assets, update-release]
-    if: always()
-
-    steps:
-      - name: Generate final summary
-        run: |
-          echo "# Release Notes Generation Summary" > release-summary.md
-          echo "## Generation Date: $(date)" >> release-summary.md
-          echo "## Workflow Results:" >> release-summary.md
-          echo "- Change Analysis: ${{ needs.analyze-changes.result }}" >> release-summary.md
-          echo "- Release Notes Generation: ${{ needs.generate-release-notes.result }}" >> release-summary.md
-          echo "- Asset Creation: ${{ needs.create-assets.result }}" >> release-summary.md
-          echo "- Release Update: ${{ needs.update-release.result }}" >> release-summary.md
-          echo "" >> release-summary.md
-          echo "## Release Type: ${{ github.event.inputs.release_type || 'standard' }}" >> release-summary.md
-          echo "## Change Count: ${{ needs.analyze-changes.outputs.change-count }}" >> release-summary.md
-          echo "## Status: ✅ RELEASE NOTES GENERATED" >> release-summary.md
-          echo "## Generated Files:" >> release-summary.md
-          echo "- release-notes.md" >> release-summary.md
-          echo "- RELEASE_NOTES.md" >> release-summary.md
-          echo "- CHANGELOG.md" >> release-summary.md
-          echo "- release-notes.html" >> release-summary.md
-          echo "## Next Steps:" >> release-summary.md
-          echo "- Review generated release notes" >> release-summary.md
-          echo "- Publish release if ready" >> release-summary.md
-          echo "- Share with stakeholders" >> release-summary.md
-
-      - name: Upload summary
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-generation-summary
-          path: release-summary.md
