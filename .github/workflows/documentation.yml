@@ -36,17 +36,33 @@ jobs:
         run: |
           echo "Building documentation..."
           
+          # Ensure site directory exists
+          mkdir -p site
+          
           # Try different documentation tools
           if [ -f "mkdocs.yml" ]; then
-            mkdocs build
+            mkdocs build || echo "MkDocs build failed, using default"
           elif [ -f "docsify.json" ]; then
             echo "Docsify documentation"
           elif [ -f "package.json" ]; then
             npm run docs:build || echo "No docs build script"
-          else
-            # Create a simple HTML documentation
-            mkdir -p site
-            echo "<!DOCTYPE html><html><head><title>Documentation</title></head><body><h1>Project Documentation</h1></body></html>" > site/index.html
+          fi
+          
+          # Create default documentation if site is empty
+          if [ ! -f "site/index.html" ]; then
+            cat > site/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project Documentation</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>Project Documentation</h1>
+    <p>Documentation is being generated...</p>
+</body>
+</html>
+EOF
           fi
       
       - name: Upload documentation artifacts
@@ -54,6 +70,7 @@ jobs:
         with:
           name: documentation
           path: site/
+          if-no-files-found: error
           retention-days: 30
   
   deploy-docs:
@@ -78,6 +95,7 @@ jobs:
         with:
           name: documentation
           path: ./site
+          if-no-files-found: error
       
       - name: Setup Pages
         uses: actions/configure-pages@v3

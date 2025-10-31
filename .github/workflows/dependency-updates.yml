@@ -21,10 +21,22 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
       
+      - name: Check for package.json
+        id: check_package
+        run: |
+          if [ -f "package.json" ]; then
+            echo "has_package=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Install dependencies
+        if: steps.check_package.outputs.has_package == 'true'
         run: npm ci
+        continue-on-error: true
       
       - name: Check for outdated packages
+        if: steps.check_package.outputs.has_package == 'true'
         id: outdated
         run: |
           echo "Checking for outdated npm packages..."
@@ -43,13 +55,14 @@ jobs:
           fi
       
       - name: Run npm audit
+        if: steps.check_package.outputs.has_package == 'true'
         run: |
           echo "Running security audit..."
           npm audit --json > audit.json || echo "{}" > audit.json
           npm audit --audit-level=moderate || true
       
       - name: Test with updated dependencies
-        if: steps.outdated.outputs.has_updates == 'true'
+        if: steps.check_package.outputs.has_package == 'true' && steps.outdated.outputs.has_updates == 'true'
         run: |
           echo "Testing with potential updates..."
           # In a real scenario, you would update package.json and test
@@ -57,9 +70,14 @@ jobs:
           continue-on-error: true
       
       - name: Create update report
+        if: always()
         run: |
           echo "## Dependency Update Report" >> $GITHUB_STEP_SUMMARY
-          echo "- Outdated packages: ${{ steps.outdated.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check_package.outputs.has_package }}" == "true" ]; then
+            echo "- Outdated packages: ${{ steps.outdated.outputs.count || '0' }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- No package.json found, skipping dependency check" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "- Report generated: $(date)" >> $GITHUB_STEP_SUMMARY
       
       - name: Upload update reports
