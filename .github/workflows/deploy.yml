@@ -28,7 +28,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'npm'
       
       - name: Check for package.json
         id: check_package
@@ -41,7 +40,12 @@ jobs:
       
       - name: Install dependencies
         if: steps.check_package.outputs.has_package == 'true'
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ] || [ -f "npm-shrinkwrap.json" ] || [ -f "yarn.lock" ]; then
+            npm ci
+          else
+            npm install
+          fi
         continue-on-error: true
       
       - name: Run tests
@@ -134,7 +138,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          cache: 'npm'
       
       - name: Check for package.json
         id: check_package
@@ -147,7 +150,12 @@ jobs:
       
       - name: Install dependencies
         if: steps.check_package.outputs.has_package == 'true'
-        run: npm ci
+        run: |
+          if [ -f "package-lock.json" ] || [ -f "npm-shrinkwrap.json" ] || [ -f "yarn.lock" ]; then
+            npm ci
+          else
+            npm install
+          fi
         continue-on-error: true
       
       - name: Download build artifacts
