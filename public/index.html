@@ -1,37 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SCD Assignment 2 - Vercel Deployment</title>
+  <title>SCD Assignment 2</title>
   <style>
-    body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 40px; color: #222; }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { margin-bottom: 0.25rem; }
-    .muted { color: #666; }
-    pre { background: #f6f8fa; padding: 12px; border-radius: 6px; overflow-x: auto; }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #fafafa;
+    }
+    .container {
+      max-width: 600px;
+      margin: 80px auto;
+      padding: 40px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #1a1a1a;
+    }
+    p {
+      margin-bottom: 20px;
+      color: #666;
+    }
+    a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
   </style>
-  </head>
+</head>
 <body>
   <div class="container">
-    <h1>Deployment Successful</h1>
-    <p class="muted">SCD Assignment 2 • GitHub Actions → Vercel</p>
-
+    <h1>SCD Assignment 2</h1>
+    <p>GitHub Actions workflows deployed via Vercel.</p>
     <p>
-      This is a placeholder static site to satisfy Vercel's output requirement.
-      Your GitHub Actions workflows are set up to build and deploy here.
+      <a href="https://github.com/Saad-Abdulah/SCD_Assignment-2" target="_blank">View Repository</a>
     </p>
-
-    <h2>What to do next</h2>
-    <ul>
-      <li>Customize this page in <code>public/index.html</code></li>
-      <li>Or change the Vercel output directory via <code>vercel.json</code></li>
-      <li>Push to <code>main</code> to auto-deploy</li>
-    </ul>
-
-    <h3>Repo</h3>
-    <pre><code>https://github.com/Saad-Abdulah/SCD_Assignment-2</code></pre>
   </div>
 </body>
 </html>
